@@ -18,12 +18,13 @@ import (
 // IterateJobsFilter is translated to a 'where' SQL clause for use by the job iterator.
 // keeping this as its own separate struct makes it easy to check to see if a
 // filter is defined. It also allows filters to be combined later if needed.
-// TODO(Fahad): combine filters by adding filter.And(other Filter) and filter.Or(other Filter)
+// TODO(Fahad): if needed, combine filters by adding filter.And(other Filter) and filter.Or(other Filter)
 type IterateJobsFilter struct {
 	// Operation determines how fields are joined into a predicate. The default is 'AND'
 	Operation filterOperation
 
 	// fields to filter on
+	NullParent  bool
 	Parent      JobID
 	HasInput    []byte
 	Program     []byte
@@ -46,7 +47,7 @@ func (f IterateJobsFilter) IsEmpty() bool {
 func (f IterateJobsFilter) apply() (where string, values []any) {
 	var conditions []string
 	// from pjs.jobs
-	if f.Parent != 0 {
+	if f.Parent != 0 && !f.NullParent {
 		conditions = append(conditions, "j.parent = ?")
 		values = append(values, f.Parent)
 	}
@@ -70,6 +71,9 @@ func (f IterateJobsFilter) apply() (where string, values []any) {
 	if f.HasOutput != nil {
 		conditions = append(conditions, "jf_output.fileset IN (?)")
 		values = append(values, f.HasOutput)
+	}
+	if f.NullParent {
+		conditions = append(conditions, "j.parent IS NULL")
 	}
 	if len(conditions) == 0 {
 		return "", nil
@@ -124,7 +128,7 @@ func NewJobsIterator(extCtx sqlx.ExtContext, req IterateJobsRequest) *JobsIterat
 	query := selectJobRecordPrefix
 	where, values := req.Filter.apply()
 	query += where
-	query += "\nGROUP BY j.id "
+	query += "\nGROUP BY j.id, jc.job_hash, jc.cache_write, jc.cache_read "
 	query += req.orderBy()
 	query = extCtx.Rebind(query)
 	if req.PageSize == 0 {
