@@ -142,6 +142,7 @@ func (fb *fullBuilder) buildAndRun(ctx context.Context) error {
 		fb.maybeRegisterIdentityServer,
 		fb.registerAuthServer,
 		fb.registerPFSServer,
+		fb.registerPJSServer,
 		fb.registerSnapshotServer,
 		fb.registerStorageServer,
 		fb.registerPPSServer,
@@ -356,11 +357,8 @@ func NewFull(env Env, config pachconfig.PachdFullConfiguration, opt *FullOption)
 			return pjs_server.Env{
 				DB:               env.DB,
 				GetPermissionser: pd.authServer.(pjs_server.GetPermissionser),
-				GetStorageClient: func(ctx context.Context) storage.FilesetClient {
-					pachClient := pd.mustGetPachClient(ctx)
-					return pachClient.FilesetClient
-				},
-				GetAuthToken: auth.GetAuthToken,
+				Storage:          pd.storageServer,
+				GetAuthToken:     auth.GetAuthToken,
 			}
 		}),
 		initPPSAPIServer(&pd.ppsServer, func() pps_server.Env {
